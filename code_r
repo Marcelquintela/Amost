@@ -13,19 +13,34 @@ library(stratification)
 library(sampling) # carrega pacote para seleção de amostra
 library(survey) # carrega pacode de analise amostral
 
-munic1 = read.csv(https://raw.github.com/Marcelquintela/Amost/master/munic) # Leitura dos dados da população de fazendas
-munic1 = transform(munic1, ## transformaçao 
-                   FuncADMD= as.numeric(FuncADMD),
+munic = read.csv("Munic1.csv", sep=";") # Leitura dos dados da população de fazendas
+munic = transform(munic,  
+                   FuncADMD = as.numeric(FuncADMD),
+                   Regiao = as.factor(Regiao),
+                   Popolacao = as.factor(Populacao),
                    Maternidade=ifelse(Maternidade=="Sim",1,ifelse(Maternidade=='Não',0,NA)),
                    Emergencia=ifelse(Emergencia=="Sim",1,ifelse(Emergencia=='Não',0,NA)))
-str(munic1)
+str(munic)
 
-(N = nrow(munic1)) # Calcula tamanho da população de municipios
-(n = 200) # Especifica o tamanho da amostra
+(N = nrow(munic))  # tamanho da população de municipios
+(n = 200)           # tamanho da amostra
 
 # Parâmetros das variáveis na população
-(totais = colSums(munic1[,c("FuncADMD", "Maternidade", "Emergencia")])) ##totais
-(S2 = diag(var(munic1[,c("FuncADMD", "Maternidade", "Emergencia")]))) ##Variâncias
-(cvy = sqrt(S2) / (totais/N)) #Coeficiente devariação
+(totais = colSums(munic[,c("FuncADMD", "Maternidade", "Emergencia")], na.rm=T)) ##totais
+(S2 = diag(var(munic[,c("FuncADMD", "Maternidade", "Emergencia")], na.rm=T))) ##Variâncias
+(cvy = sqrt(S2) / (totais/N)) #Coeficiente de variação
 
-## Plano 1 - Amostragem aleatória simples de municípios
+
+## Definição dos Coeficientes de Variação dos Planos Amostrais
+
+# Plano 1 - Amostragem aleatória simples de municípios
+(var.p1 = (N^2) * (1/n - 1/N) * S2)   # Variancia Plano1 (AAS) no amostra n
+(cv.p1 = sqrt(var.p1) / totais)       # Coef. de Variação  Plano1 (AAS) no amostra n
+
+# Plano 2 - Amostragem estratificada simples de municípios, com os municípios
+#           estratificados por região e alocação igual;
+munic$estrato.p2[munic$Regiao=="1 - Norte"]         = 1
+munic$estrato.p2[munic$Regiao=="2 - Nordeste"]      = 2
+munic$estrato.p2[munic$Regiao=="3 - Sudeste"]       = 3
+munic$estrato.p2[munic$Regiao=="4 - Sul"]           = 4
+munic$estrato.p2[munic$Regiao=="5 - Centro-Oeste"]  = 5
