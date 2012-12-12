@@ -1,0 +1,31 @@
+## ********************************************************************##
+# Exame final Amostragem 2012
+# Aluno Marcel Dantas de Quintela Mat. 2012303131-27
+## ********************************************************************##
+
+setwd("D:\\Ence_Mestrado_2012\\03.Amostragem\\Exercícios\\Exame_Final") # Define pasta de trabalho
+getwd() # Verifica se alocação da pasta de trabalho foi correta
+ls()  # Lista arquivos encontrados na pasta de trabalho
+
+# Carrega bibliotecas requeridas para o trabalho
+library(foreign) # Carrega biblioteca para ler arquivo de dados em formato 'externo'
+library(stratification)
+library(sampling) # carrega pacote para seleção de amostra
+library(survey) # carrega pacode de analise amostral
+
+munic1 = read.csv("Munic1.csv", sep=";") # Leitura dos dados da população de fazendas
+munic1 = transform(munic1, ## transformaçao 
+                   FuncADMD= as.numeric(FuncADMD),
+                   Maternidade=ifelse(Maternidade=="Sim",1,ifelse(Maternidade=='Não',0,NA)),
+                   Emergencia=ifelse(Emergencia=="Sim",1,ifelse(Emergencia=='Não',0,NA)))
+str(munic1)
+
+(N = nrow(munic1)) # Calcula tamanho da população de municipios
+(n = 200) # Especifica o tamanho da amostra
+
+# Parâmetros das variáveis na população
+(totais = colSums(munic1[,c("FuncADMD", "Maternidade", "Emergencia")])) ##totais
+(S2 = diag(var(munic1[,c("FuncADMD", "Maternidade", "Emergencia")]))) ##Variâncias
+(cvy = sqrt(S2) / (totais/N)) #Coeficiente devariação
+
+## Plano 1 - Amostragem aleatória simples de municípios
