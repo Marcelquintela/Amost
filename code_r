@@ -13,7 +13,7 @@ library(stratification)
 library(sampling) # carrega pacote para seleção de amostra
 library(survey) # carrega pacode de analise amostral
 
-munic1 = read.csv("Munic1.csv", sep=";") # Leitura dos dados da população de fazendas
+munic1 = read.csv(https://raw.github.com/Marcelquintela/Amost/master/munic) # Leitura dos dados da população de fazendas
 munic1 = transform(munic1, ## transformaçao 
                    FuncADMD= as.numeric(FuncADMD),
                    Maternidade=ifelse(Maternidade=="Sim",1,ifelse(Maternidade=='Não',0,NA)),
