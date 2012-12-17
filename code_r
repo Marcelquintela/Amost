@@ -13,34 +13,199 @@ library(stratification)
 library(sampling) # carrega pacote para seleção de amostra
 library(survey) # carrega pacode de analise amostral
 
-munic = read.csv("Munic1.csv", sep=";") # Leitura dos dados da população de fazendas
+munic = read.csv("Munic.csv", sep=";") # Leitura dos dados da população de fazendas
 munic = transform(munic,  
                    FuncADMD = as.numeric(FuncADMD),
-                   Regiao = as.factor(Regiao),
-                   Popolacao = as.factor(Populacao),
+                   Populacao = as.numeric(Populacao),
                    Maternidade=ifelse(Maternidade=="Sim",1,ifelse(Maternidade=='Não',0,NA)),
                    Emergencia=ifelse(Emergencia=="Sim",1,ifelse(Emergencia=='Não',0,NA)))
-str(munic)
 
-(N = nrow(munic))  # tamanho da população de municipios
-(n = 200)           # tamanho da amostra
+(N = nrow(munic))  # Total de municipios
+(n = 200)          # tamanho da amostra
 
-# Parâmetros das variáveis na população
-(totais = colSums(munic[,c("FuncADMD", "Maternidade", "Emergencia")], na.rm=T)) ##totais
-(S2 = diag(var(munic[,c("FuncADMD", "Maternidade", "Emergencia")], na.rm=T))) ##Variâncias
-(cvy = sqrt(S2) / (totais/N)) #Coeficiente de variação
+## ---------------------------------- Parâmetros das variáveis na população ---------------------------------- ##
+# a) Total de funcionários ativos da administração direta
+(tot_p.a = sum(munic$FuncADMD, rm.na=T))      # Total 
+(med_p.a = mean(munic$FuncADMD, na.rm=T))     # Media
+(S2_p.a  = var(munic$FuncADMD, na.rm=T))      # Variância
+(cv_p.a  = sqrt(S2_p.a) / med_p.a)            # Coeficiente de variação
 
 
-## Definição dos Coeficientes de Variação dos Planos Amostrais
+# b) Razão da população por funcionário ativo da administração direta
+munic = transform(munic, Razao_Pop.Func = (Populacao/FuncADMD))
+(tot_p.b = sum(munic$Populacao)/sum(munic$FuncADMD))      # o total da razão de total é igual a razão de medias
+(S2_p.b  = var(munic$Razao_Pop.Func))
+(cv_p.b  = sqrt(S2_p.b)/tot_p.b)
 
-# Plano 1 - Amostragem aleatória simples de municípios
-(var.p1 = (N^2) * (1/n - 1/N) * S2)   # Variancia Plano1 (AAS) no amostra n
-(cv.p1 = sqrt(var.p1) / totais)       # Coef. de Variação  Plano1 (AAS) no amostra n
+# c) Proporção de municípios com maternidade
+(tot_p.c = sum(munic$Maternidade))
+(med_p.c = tot_p.c/N)
+(S2_p.c  = med_p.c*(1-med_p.c))
+(cv_p.c  = sqrt(S2_p.c)/med_p.c)
 
-# Plano 2 - Amostragem estratificada simples de municípios, com os municípios
-#           estratificados por região e alocação igual;
-munic$estrato.p2[munic$Regiao=="1 - Norte"]         = 1
-munic$estrato.p2[munic$Regiao=="2 - Nordeste"]      = 2
-munic$estrato.p2[munic$Regiao=="3 - Sudeste"]       = 3
-munic$estrato.p2[munic$Regiao=="4 - Sul"]           = 4
-munic$estrato.p2[munic$Regiao=="5 - Centro-Oeste"]  = 5
+# d) Proporção de municípios com maternidade e emergência.
+munic = transform(munic, Mat_Emer = ifelse(Maternidade==1&Emergencia==1,1,0))
+(tot_p.d = sum(munic$Mat_Emer, na.rm=T))
+(med_p.d = tot_p.d/N)
+(S2_p.d  = med_p.d*(1-med_p.d))
+(cv_p.d  = sqrt(S2_p.d)/med_p.d)
+
+
+## ---------------- Definição dos ESTIMADORES de Coeficientes de Variação dos Planos Amostrais --------------- ##
+
+############## Plano 1 - Amostragem Aleatória Simples de municípios
+# a) Total de funcionários ativos da administração direta
+(varAAS_e.a = (N^2) * (1/n - 1/N) * S2_p.a)  
+(cvAAS_e.a  = 100*sqrt(varAAS_e.a) / tot_p.a)     
+
+# b) Razão da população por funcionário ativo da administração direta ?????
+(varAAS_e.b = (1-n/N)/(n*(mean(munic$FuncADMD)^2))/(N-1)*
+              ((sum(munic$Populacao^2)
+               -2*tot_p.b*sum(munic$Populacao*munic$FuncADMD)
+               +tot_p.b^2*sum(munic$FuncADMD^2))))
+(cvAAS_e.b  = 100*sqrt(varAAS_e.b)/tot_p.b)
+ 
+# c) Proporção de municípios com maternidade
+(varAAS_e.c = ((N-n)/(N-1))*med_p.c*(1-med_p.c)/n)
+(cvAAS_e.c  = 100*sqrt(varAAS_e.c)/med_p.c)
+
+# d) Proporção de municípios com maternidade e emergência
+(varAAS_e.d = ((N-n)/(N-1))*med_p.d*(1-med_p.d)/n)
+(cvAAS_e.d  = 100*sqrt(varAAS_e.d)/med_p.d)
+
+############## Plano 2 - Amostragem estratificada simples de municípios, com os municípios
+#                        estratificados por região e alocação igual
+munic = transform(munic,estrato.p2=substr(CodMunic,1,1))
+(aux=table(munic$estrato.p2))                         # Resumo dos estratos
+(ni=rep(n/5,5))                                       # Tamanho do estrato
+wh=aux/N                                              # fração amostral
+
+# a) Total de funcionários ativos da administração direta
+varAES.a = function(n){ ## estimador HT de variancia para cada estrato
+  x = numeric(n)
+  for (i in 1:n){
+    x[i] = N^2*wh[i]^2*(1/ni[i]-1/aux[i])*var(munic$FuncADMD[munic$estrato.p2==i])
+  }
+  return(x)
+}
+varAES.a(5)
+(varAES_e.a = sum(varAES.a(5)))
+(cvAES_e.a = 100*sqrt(varAES_e.a)/tot_p.a)
+
+# b) Razão da população por funcionário ativo da administração direta
+var_raz = function(n){
+  x = numeric(n)
+  a = x; b= x
+  for (i in 1:n){
+    a[i] = ((1-ni[i]/aux[i])/(ni[i]*(mean(munic$FuncADMD[munic$estrato.p2==i])^2)))
+    b[i] = (sum(munic$Populacao[munic$estrato.p2==i]^2)
+            -2*tot_p.b*sum(munic$Populacao[munic$estrato.p2==i]*munic$FuncADMD[munic$estrato.p2==i])
+            +tot_p.b^2*sum(munic$FuncADMD[munic$estrato.p2==i]^2))
+    x[i] = a[i]*b[i]/(aux[i]-1)
+  }
+  return(x)
+}
+(varAES_e.b = sum(wh^2*(1/ni-1/aux)*var_raz(5)))
+(cvAES_e.b  = 100*sqrt(varAES_e.b)/tot_p.b)
+
+# c) Proporção de municípios com maternidade
+var_int = function(n,data){ ## estimador 
+  x = numeric(n)
+  t = numeric(n)
+  for (i in 1:n){
+    t[i] = sum(data[munic$estrato.p2==i],na.rm=T)
+    x[i] = ((aux[i]-ni[i])/(aux[i]-1))*(t[i]/aux[i])*(1-t[i]/aux[i])*1/ni[i]
+  }
+  return(x)
+}
+(varAES_e.c = sum(wh^2*(1/ni-1/aux)*var_int(5,munic$Maternidade)))
+(cvAES_e.c  = 100*sqrt(varAES_e.c)/med_p.c)
+
+# d) Proporção de municípios com maternidade e emergência.
+(varAES_e.d = sum(wh^2*(1/ni-1/aux)*var_int(5,munic$Mat_Emer)))
+(cvAES_e.d  = 100*sqrt(varAES_e.d)/med_p.d)
+
+
+############## Plano 3 - Amostragem estratificada simples de municípios, estratificada por tamanho
+#                        (população) em cinco classes tais que a soma da raiz quadrada da população dos
+#                        municípios seja aproximadamente igual, e usando alocação igual da amostra nos estratos;
+# a) Total de funcionários ativos da administração direta
+# b) Razão da população por funcionário ativo da administração direta
+# c) Proporção de municípios com maternidade
+# d) Proporção de municípios com maternidade e emergência.
+
+############## Plano 4 - Amostragem estratificada 'por corte', com inclusão de municípios com certeza
+#                        na amostra. Neste plano, inclua todos os municípios de capitais e também todos os
+#                        municípios com população igual ou superior a 500.000 habitantes com certeza na amostra.
+#                        Selecione uma amostra aleatória simples dos municípios restantes.
+munic = transform(munic,estrato.p4=ifelse(munic$Populacao >= 500000,1,2))
+(aux=table(munic$estrato.p4))                                             
+(ni=c(aux[1],n-aux[1]))
+(wh=aux/N)
+# a) Total de funcionários ativos da administração direta 
+## a variancia no estrato certo é nula, so calcula do estrato 2
+varAEC.a = function(n){ ## estimador HT de variancia para cada estrato
+  x = numeric(n)
+  for (i in 1:n){
+    x[i] = N^2*wh[i]^2*(1/ni[i]-1/aux[i])*var(munic$FuncADMD[munic$estrato.p2==i])
+  }
+  return(x)
+}
+varAEC.a(2)
+(varAEC_e.a = sum(varAEC.a(2)))
+(cvAEC_e.a = 100*sqrt(varAEC_e.a)/tot_p.a)
+(cvAEC_e.a = 100*sqrt(varAEC_e.a)/sum(munic$FuncADMD[munic$estrato.p2==2]))
+
+# b) Razão da população por funcionário ativo da administração direta
+var_raz = function(n){
+  x = numeric(n)
+  a = x; b= x
+  for (i in 1:n){
+    a[i] = ((1-ni[i]/aux[i])/(ni[i]*(mean(munic$FuncADMD[munic$estrato.p2==i])^2)))
+    b[i] = (sum(munic$Populacao[munic$estrato.p2==i]^2)
+            -2*tot_p.b*sum(munic$Populacao[munic$estrato.p2==i]*munic$FuncADMD[munic$estrato.p2==i])
+            +tot_p.b^2*sum(munic$FuncADMD[munic$estrato.p2==i]^2))
+    x[i] = a[i]*b[i]/(aux[i]-1)
+  }
+  return(x)
+}
+(varACS_e.b = sum(wh^2*(1/ni-1/aux)*var_raz(2)))
+(cvACS_e.b  = 100*sqrt(varACS_e.b)/tot_p.b)
+
+# c) Proporção de municípios com maternidade
+vari = function(n) {
+  t=numeric(n)
+  x=numeric(n)
+  for (i in 1:n){
+    t[i] = sum(munic$Maternidade[munic$estrato.p4==2])/aux[i]
+    x[i] = ((aux[i]-(n-aux[i]))/(aux[i]-1))*t[i]*(1-t[i])/(n-aux[i])
+  }
+  return(x)
+}
+vari(dim(aux))
+varAEC_e.c=sum(vari(dim(aux)))
+(cvAEC_e.c  = 100*sqrt(varAEC_e.c)/med_p.c)
+
+# d) Proporção de municípios com maternidade e emergência
+prop_d=sum(munic$Mat_Emer[munic$estrato.p4==2])/Ni
+(varAEC_e.d = ((Ni-ni)/(Ni-1))*prop_d*(1-prop_d)/ni)
+(cvAEC_e.d  = 100*sqrt(varAEC_e.c)/prop_d)
+
+############## Plano 5 - Amostragem aleatória simples de municípios (igual ao plano 1) mas
+#                        considerando o emprego do estimador de razão tendo como variável auxiliar o total da
+#                        população.
+# a) Total de funcionários ativos da administração direta
+# b) Razão da população por funcionário ativo da administração direta
+# c) Proporção de municípios com maternidade
+# d) Proporção de municípios com maternidade e emergência.
+
+
+CVS = matrix(c(cvAAS_e.a ,cvAAS_e.b ,cvAAS_e.c ,cvAAS_e.d ,
+               cvAES_e.a ,cvAES_e.b ,cvAES_e.c ,cvAES_e.d ,
+               cvAES2_e.a,cvAES2_e.b,cvAES2_e.c,cvAES2_e.d,
+               cvAEC_e.a ,cvAEC_e.b ,cvAEC_e.c ,cvAEC_e.d ,
+               cvAAS2_e.a,cvAAS2_e.b,cvAAS2_e.c,cvAAS2_e.d)
+             ,nrow=5, ncol=4, byrow=T,
+             dimnames=list(c("Plano1", "Plano2","Plano3", "Plano4", "Plano5"),
+                           c("Total_FuncADMD","Razão_Pop_Func","Prop_Mater","Prop_Mat&Eme" )))
+CVS
