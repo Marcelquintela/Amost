@@ -1,7 +1,7 @@
-## ********************************************************************##
+## ****************************************************************************************************##
 # Exame final Amostragem 2012
 # Aluno Marcel Dantas de Quintela Mat. 2012303131-27
-## ********************************************************************##
+## ****************************************************************************************************##
 
 setwd("D:\\Ence_Mestrado_2012\\03.Amostragem\\Exercícios\\Exame_Final") # Define pasta de trabalho
 getwd() # Verifica se alocação da pasta de trabalho foi correta
@@ -17,23 +17,35 @@ munic = read.csv("Munic.csv", sep=";") # Leitura dos dados da população de faz
 munic = transform(munic,  
                   FuncADMD = as.numeric(FuncADMD),
                   Populacao = as.numeric(Populacao),
-                  Maternidade=ifelse(Maternidade=="Sim",1,ifelse(Maternidade=='Não',0,NA)),
-                  Emergencia=ifelse(Emergencia=="Sim",1,ifelse(Emergencia=='Não',0,NA)),
+                  Maternidade=ifelse(Maternidade=="Sim",1,ifelse(Maternidade=="Não",0,NA)),
+                  Emergencia=ifelse(Emergencia=="Sim",1,ifelse(Emergencia=="Não",0,NA)),
                   Razao_Pop.Func = (Populacao/FuncADMD),
                   Mat_Emer = ifelse(Maternidade=="Sim" & Emergencia=="Sim",1,0))
+
+# Criando a variavel capitais, necessaria para o Plano4
+# Lembrando que Palmas foi removida do cadastro e o geocodigo foi removido o ultimo digito
+capitais <- c('110020','120040','130260','140010','150140','160030','172100','211130','221100',
+              '230440','240810','250750','261160','270430','280030','292740','310620','320530',
+              '330455','355030','410690','420540','431490','500270','510340','520870','530010')
+munic = transform(munic,Capitais = ifelse(is.element(munic$CodMunic,capitais),1,0))
 #rm(munic)
+
 (N = nrow(munic))  # Total de municipios
 (n = 200)          # tamanho da amostra
 (f = n/N)          # Fração Amostral
 
-raz.soma = function(n, Estrato){ #Razão das somas para os estratos
+raz.soma = function(n, Estrato)     { #Razão das somas para os estratos
   a = rep(0,n)
   for (i in 1:n){a[i]=sum(munic$Populacao[Estrato==i])/sum(munic$FuncADMD[Estrato==i])}
   return(a)
 }
 
-Var.raz = function(N,n,med,raz){
-  r = (1-f)/(n*med^2)*1/(N-1)*sum(munic$Populacao-raz*munic$FuncADMD)^2
+Corr = function(n,Estrato){
+  a = numeric(n)
+  for(i in 1:n) {
+    a[i] = cor(munic$Populacao[Estrato==i],munic$FuncADMD[Estrato==i])   
+  }
+  return(a)
 }
 
 Var.prop = function(N,n,P){
@@ -46,26 +58,27 @@ Resultados = matrix(c(rep(NA,20)),nrow=5, ncol=4, byrow=T,
 
 ############## Plano 1 - Amostragem Aleatória Simples de municípios
 # a) Total de funcionários ativos da administração direta
+tot.a = sum(munic$FuncADMD, rm.na=T)
 (Plano1.Vartot.a = (N^2) * (1/n - 1/N) * var(munic$FuncADMD))  
-(Plano1.CVtot.a  = 100*sqrt(Plano1.Vartot.a) / sum(munic$FuncADMD, rm.na=T)) 
+(Plano1.CVtot.a  = 100*sqrt(Plano1.Vartot.a) / tot.a) 
 
 # b) Razão da população por funcionário ativo da administração direta ?????
-(tot_raz = sum(munic$Razao_Pop.Func, rm.na=T))
+(tot.b = sum(munic$Populacao)/sum(munic$FuncADMD))
 (med_raz = mean(munic$FuncADMD))
-(Plano1.Vartot.b = (1-f)/(n*med_raz^2)/(N-1)*sum((munic$Populacao-tot_raz*munic$FuncADMD)^2))
-(Plano1.CVtot.b  = 100*sqrt(Plano1.Vartot.b)/tot_raz)
-rm(tot_raz,med_raz)
+(Plano1.Vartot.b = (1-f)/(n*med_raz^2)*1/(N-1)*sum((munic$Populacao-tot.b*munic$FuncADMD)^2))
+(Plano1.CVtot.b  = 100*sqrt(Plano1.Vartot.b)/tot.b)
 
 # c) Proporção de municípios com maternidade
-prop = sum(munic$Maternidade)/N
-(Plano1.Vartot.c = ((N-n)/(N-1))*prop*(1-prop)/n)
-(Plano1.CVtot.c  = 100*sqrt(Plano1.Vartot.c)/prop)
+prop.c = sum(munic$Maternidade)/N
+(Plano1.Vartot.c = ((N-n)/(N-1))*prop.c*(1-prop.c)/n)
+(Plano1.CVtot.c  = 100*sqrt(Plano1.Vartot.c)/prop.c)
 
 # d) Proporção de municípios com maternidade e emergência
-prop = sum(munic$Mat_Emer)/N
-(Plano1.Vartot.d = ((N-n)/(N-1))*prop*(1-prop)/n)
-(Plano1.CVtot.d  = 100*sqrt(Plano1.Vartot.d)/prop)
-rm(prop)
+prop.d = sum(munic$Mat_Emer)/N
+(Plano1.Vartot.d = ((N-n)/(N-1))*prop.d*(1-prop.d)/n)
+(Plano1.CVtot.d  = 100*sqrt(Plano1.Vartot.d)/prop.d)
+
+Totais= c(tot.a,tot.b,prop.c,prop.d)
 
 Resultados[1,] = c(Plano1.CVtot.a,Plano1.CVtot.b,Plano1.CVtot.c,Plano1.CVtot.d)
 
@@ -84,20 +97,23 @@ aux = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer)~Estrato2, da
 aux[,3]= raz.soma(5, munic$Estrato2)
 Estrato2.Yh = cbind(Estrato2.Yh,aux[,-1])
 
-Estrato2.Sh2 = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer)~Estrato2, data=munic,FUN=var)
-Estrato2.Sh2[3] = Var.raz(Estrato2.Nh,Estrato2.nh,Estrato2.Yh[4],Estrato2.Yh[3])
-Estrato2.Sh2[4] = Var.prop(Estrato2.Nh,Estrato2.nh,Estrato2.Yh[6])
-Estrato2.Sh2[5] = Var.prop(Estrato2.Nh,Estrato2.nh,Estrato2.Yh[7])
-Estrato2.Sh2 = Estrato2.Sh2[,-1]
+Estrato2.Sh2 = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer,Populacao)~Estrato2, 
+                         data=munic,FUN=var)
+Estrato2.SD = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer,Populacao)~Estrato2, 
+                         data=munic,FUN=sd)
 
-Totais = c(sum(munic$FuncADMD), sum(munic$Razao_Pop.Func), 
-           sum(Estrato2.Yh[6]*Wh), sum(Estrato2.Yh[7]*Wh))
+Vartot.raz = (1/sum(munic$FuncADMD)^2)*sum(Estrato2.Nh^2 * (1- (Estrato2.nh/Estrato2.Nh))/Estrato2.nh * 
+                             (Estrato2.Sh2[6] + Estrato2.Yh[5]^2*Estrato2.Sh2[2]  
+                              - 2 * Estrato2.Yh[5] * Estrato2.SD[6] * Estrato2.SD[2] 
+                              * Corr(5,munic$Estrato2)))
+Estrato2.Sh2 = Estrato2.Sh2[,-c(1,6)]
 
 (Plano2.Vartot = colSums(Wh^2 * ((1 / Estrato2.nh) - (1 / Estrato2.Nh)) * Estrato2.Sh2))
-Plano2.Vartot[1]=N^2*Plano2.Vartot[1] ## Correçao para o estimador de Total de Funcionários
+Plano2.Vartot[1] = N^2*Plano2.Vartot[1] ## Correçao para o estimador de Total de Funcionários
+Plano2.Vartot[2] = Vartot.raz
 (Plano2.CVtot = 100*sqrt(Plano2.Vartot) / Totais)
 
-rm(aux,Estrato2.Sh2,Estrato2.Yh,Estrato2.Nh,Estrato2.nh)
+rm(aux,Estrato2.Nh,Estrato2.nh,Estrato2.Yh,Estrato2.Sh2,Estrato2.SD )
 Resultados[2,] = Plano2.CVtot
 
 ############## Plano 3 - Amostragem estratificada simples de municípios, estratificada por tamanho
@@ -120,18 +136,101 @@ aux = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer)~Estrato3, da
 aux[,3]= raz.soma(5, munic$Estrato3)
 Estrato3.Yh = cbind(Estrato3.Yh,aux[,-1])
 
-Estrato3.Sh2 = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer)~Estrato3, data=munic,FUN=var)
-Estrato3.Sh2[3] = Var.raz(Estrato3.Nh,Estrato3.nh,Estrato3.Yh[4],Estrato3.Yh[3])
-Estrato3.Sh2[4] = Var.prop(Estrato3.Nh,Estrato3.nh,Estrato3.Yh[6])
-Estrato3.Sh2[5] = Var.prop(Estrato3.Nh,Estrato3.nh,Estrato3.Yh[7])
-Estrato3.Sh2 = Estrato3.Sh2[,-1]
+Estrato3.Sh2 = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer,Populacao)~Estrato3, 
+                         data=munic,FUN=var)
+Estrato3.SD = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer,Populacao)~Estrato3, 
+                        data=munic,FUN=sd)
 
-Totais = c(sum(munic$FuncADMD), sum(munic$Razao_Pop.Func), 
-           sum(Estrato3.Yh[6]*Wh), sum(Estrato3.Yh[7]*Wh))
+Vartot.raz = (1/sum(munic$FuncADMD)^2)*sum(Estrato3.Nh^2 * (1- (Estrato3.nh/Estrato3.Nh))/Estrato3.nh * 
+                                             (Estrato3.Sh2[6] + Estrato3.Yh[5]^2*Estrato3.Sh2[2]  
+                                              - 2 * Estrato3.Yh[5] * Estrato3.SD[6] * Estrato3.SD[2] 
+                                              * Corr(5,munic$Estrato3)))
+Estrato3.Sh2 = Estrato3.Sh2[,-c(1,6)]
 
 (Plano3.Vartot = colSums(Wh^2 * ((1 / Estrato3.nh) - (1 / Estrato3.Nh)) * Estrato3.Sh2))
-Plano3.Vartot[1]=N^2*Plano3.Vartot[1] ## Correçao para o estimador de Total de Funcionários
+Plano3.Vartot[1] = N^2*Plano3.Vartot[1] ## Correçao para o estimador de Total de Funcionários
+Plano3.Vartot[2] = Vartot.raz
 (Plano3.CVtot = 100*sqrt(Plano3.Vartot) / Totais)
 
-rm(aux,Estrato3.Sh2,Estrato3.Yh,Estrato3.nh,Estrato3.Nh)
+rm(aux,Estrato3.Nh,Estrato3.nh,Estrato3.Yh,Estrato3.Sh2,Estrato3.SD )
 Resultados[3,] = Plano3.CVtot
+  
+
+############## Plano 4 - Amostragem estratificada 'por corte', com inclusão de municípios com certeza
+#                        na amostra. Neste plano, inclua todos os municípios de capitais e também todos os
+#                        municípios com população igual ou superior a 500.000 habitantes com certeza na amostra.
+#                        Selecione uma amostra aleatória simples dos municípios restantes.
+munic = transform(munic,Estrato4 = ifelse(munic$Populacao>=500000|munic$Capitais==1, 1,2))
+munic = transform(munic,Estrato4=as.factor(Estrato4))
+
+Estrato4.Nh = as.vector(table(munic$Estrato4))
+Estrato4.nh = c(Estrato4.Nh[1],200-Estrato4.Nh[1])
+Wh=Estrato4.Nh/N
+
+Estrato4.Yh  = aggregate(cbind(FuncADMD,Razao_Pop.Func)~Estrato4, data=munic,FUN=sum)
+aux = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer)~Estrato4, data=munic,FUN=mean)
+aux[,3]= raz.soma(2, munic$Estrato4)
+Estrato4.Yh = cbind(Estrato4.Yh,aux[,-1])
+
+Estrato4.Sh2 = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer,Populacao)~Estrato4, 
+                         data=munic,FUN=var)
+Estrato4.SD = aggregate(cbind(FuncADMD,Razao_Pop.Func,Maternidade,Mat_Emer,Populacao)~Estrato4, 
+                        data=munic,FUN=sd)
+
+Vartot.raz = (1/sum(munic$FuncADMD)^2)*sum(Estrato4.Nh^2 * (1- (Estrato4.nh/Estrato4.Nh))/Estrato4.nh * 
+                                             (Estrato4.Sh2[6] + Estrato4.Yh[5]^2*Estrato4.Sh2[2]  
+                                              - 2 * Estrato4.Yh[5] * Estrato4.SD[6] * Estrato4.SD[2] 
+                                              * Corr(5,munic$Estrato4)))
+Estrato4.Sh2 = Estrato4.Sh2[,-c(1,6)]
+
+(Plano4.Vartot = colSums(Wh^2 * ((1 / Estrato4.nh) - (1 / Estrato4.Nh)) * Estrato4.Sh2))
+Plano4.Vartot[1] = N^2*Plano4.Vartot[1] ## Correçao para o estimador de Total de Funcionários
+Plano4.Vartot[2] = Vartot.raz
+(Plano4.CVtot = 100*sqrt(Plano4.Vartot) / Totais)
+
+rm(aux,Estrato4.Nh,Estrato4.nh,Estrato4.Yh,Estrato4.Sh2,Estrato4.SD )
+Resultados[4,] = Plano4.CVtot
+
+############## Plano 5 - Amostragem Aleatória Simples de municípios considerando o emprego do 
+##                       estimador de razão tendo como variável auxiliar o total da população.
+
+X   = munic$Populacao
+# a) Total de funcionários ativos da administração direta
+Y     = munic$FuncADMD
+Rz = sum(Y)/sum(X)
+tot.a = sum(munic$FuncADMD, rm.na=T)
+
+(Plano5.Vartot.a <- N^2 * ((1-f)/n) * sum((Y - Rz*X)^2)*1/(N-1))
+(Plano5.CVtot.a  = 100*sqrt(Plano5.Vartot.a) / tot.a) 
+
+# b) Razão da população por funcionário ativo da administração direta ?????
+
+# c) Proporção de municípios com maternidade
+Y = munic$Maternidade
+Rz = sum(Y)/sum(X)
+prop.c = sum(munic$Maternidade)/N
+
+(Plano5.Vartot.c = ((1-f)/n) * sum((Y - Rz*X)^2)*1/(N-1))
+(Plano5.CVtot.c  = 100*sqrt(Plano5.Vartot.c)/prop.c)
+
+# d) Proporção de municípios com maternidade e emergência
+Y  = munic$Mat_Emer
+Rz = sum(Y)/sum(X)
+prop.d = sum(munic$Mat_Emer)/N
+
+(Plano5.Vartot.d <- ((1-f)/n) * sum((Y - Rz*X)^2)*1/(N-1))
+(Plano5.CVtot.d <- 100*sqrt(Plano5.Vartot.d)/prop.d)
+
+Resultados[5,] = c(Plano5.CVtot.a,NA,Plano5.CVtot.c,Plano5.CVtot.d)
+
+#************************
+#Efeitos Plano Amostral
+EPA = Resultados
+EPA = EPA[-1,]
+for(i in 1:4){
+  EPA[i,] <- Resultados[i+1,] / Resultados[1,]
+}
+#*************************
+
+round(Resultados,5)
+round(EPA,5)
