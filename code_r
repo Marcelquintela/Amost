@@ -48,9 +48,9 @@ Corr = function(n,Estrato){
   return(a)
 }
 
-Var.prop = function(N,n,P){
-  v = ((N-n)/(N-1)) * P * (1-P)*(1/n)
-}
+# Var.prop = function(N,n,P){
+#   v = ((N-n)/(N-1)) * P * (1-P)*(1/n)
+# }
 
 Resultados = matrix(c(rep(NA,20)),nrow=5, ncol=4, byrow=T,
              dimnames=list(c("Plano 1", "Plano 2","Plano 3", "Plano 4", "Plano 5"),
@@ -122,8 +122,8 @@ Resultados[2,] = Plano2.CVtot
 #cria estratos para o Plano 3 
 munic = transform(munic,sqrtpop=sqrt(Populacao))
 munic = munic[order(munic$sqrtpop),]
-aux <- matrix(NA,nrow=nrow(munic),ncol=5)
-for(i in 1:5){aux[,i] <- cumsum(munic$sqrtpop) <= (sum(munic$sqrtpop)/5)*i}
+aux = matrix(NA,nrow=nrow(munic),ncol=5)
+for(i in 1:5){aux[,i] = cumsum(munic$sqrtpop) <= (sum(munic$sqrtpop)/5)*i}
 munic = transform(munic,Estrato3=(6-rowSums(aux)))
 munic = transform(munic,Estrato3=as.factor(Estrato3))
 
@@ -152,7 +152,7 @@ Plano3.Vartot[1] = N^2*Plano3.Vartot[1] ## Correçao para o estimador de Total d
 Plano3.Vartot[2] = Vartot.raz
 (Plano3.CVtot = 100*sqrt(Plano3.Vartot) / Totais)
 
-rm(aux,Estrato3.Nh,Estrato3.nh,Estrato3.Yh,Estrato3.Sh2,Estrato3.SD )
+#rm(aux,Estrato3.Nh,Estrato3.nh,Estrato3.Yh,Estrato3.Sh2,Estrato3.SD )
 Resultados[3,] = Plano3.CVtot
   
 
@@ -234,3 +234,26 @@ for(i in 1:4){
 
 round(Resultados,5)
 round(EPA,5)
+
+write.csv2(Resultados, file="Resultados.csv")
+write.csv2(EPA, file="EPA.csv")
+
+#*********** SELEÇÃO DA AMOSTRA USANDO PACOTE CONFORME AULA 07 SLIDE 3
+(munic.amo = (data=munic, stratanames=c("Estrato3"),Estrato3.nh,method=c("srswor")))
+(amostra<-getdata(munic,munic.amo)) #comando para associar dois arquivos
+str(amostra)
+
+amostra = svydesign(data=amostra, ids=~1, strata=~Estrato3, fpc=~Prob)
+amostra.est_tot = svytotal(~FuncADMD, design=amostra)
+amostra.est_raz = svyratio(~Populacao,~FuncADMD, design=amostra)
+amostra.est_prop = svymean(~Maternidade+Mat_Emer, design=amostra)
+
+###Estimativas pontuais
+amostra.est_tot
+amostra.est_raz
+amostra.est_prop
+
+### CV's
+(amostra.cv_tot = 100* sqrt(diag(vcov(amostra.est_tot))) / coef(amostra.est_tot))
+(amostra.cv_raz = 100* sqrt(diag(vcov(amostra.est_raz))) / coef(amostra.est_raz))
+(amostra.cv_prop = 100* sqrt(diag(vcov(amostra.est_prop))) / coef(amostra.est_prop))
