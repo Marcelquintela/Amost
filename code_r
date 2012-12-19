@@ -239,7 +239,7 @@ write.csv2(Resultados, file="Resultados.csv")
 write.csv2(EPA, file="EPA.csv")
 
 #*********** SELEÇÃO DA AMOSTRA USANDO PACOTE CONFORME AULA 07 SLIDE 3
-(munic.amo = (data=munic, stratanames=c("Estrato3"),Estrato3.nh,method=c("srswor")))
+(munic.amo = strata(data=munic, stratanames=c("Estrato3"),Estrato3.nh,method=c("srswor")))
 (amostra<-getdata(munic,munic.amo)) #comando para associar dois arquivos
 str(amostra)
 
